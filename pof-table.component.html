@@ -1,0 +1,395 @@
+<div class="plx-table-wrapper" >
+    <!-- 加载中转圈 -->
+    <div class="plx-table-loading" *ngIf="showLoading">
+        <div class="plx-table-loading-content"></div>
+        <div class="plx-table-loading-placeholder"><span>{{loadingPlaceholder}}</span></div>
+    </div>
+    <!-- diable状态灰话表格 -->
+    <div class="plx-table-disabled" *ngIf="disabled">
+
+    </div>
+
+    <div [ngClass]="{'plx-table-blur': showLoading}">
+
+        <div  class="plx-table-opretions-wrapper">
+            <!-- 表头左上角插入内容区域 -->
+            <ng-content></ng-content>
+            <!-- 列定制面板 -->
+            <plx-table-custom-cols *ngIf="showCustomCol" [cols]="_columns" [colsPanelMaxHeight]="colsPanelMaxHeight" (colsInfoChange)="clolumsChangeFromView($event)">
+
+            </plx-table-custom-cols>
+            <!-- 表格右上角全局过滤 -->
+            <plx-table-filter *ngIf="showColFilterToggle || showGlobalFilter"
+                              [showColFilterToggle]="showColFilterToggle"
+                              [showGlobalFilter]="showGlobalFilter"
+                              [placeholder]="globalFilterPlaceholder"
+                              [searchInstant]="searchInstant"
+                              (filterInfoChange)="globalFiltInfoChangeFromView($event)"
+                              (filterToggleChange)="colFilterToggle($event)"
+                              [filterTip]="globleFilterTip"
+            >
+
+            </plx-table-filter>
+        </div>
+        <!-- 表格内容 -->
+        <div class="plx-table-content">
+
+            <!-- 表格不出滚动条 -->
+            <table *ngIf="!scroll; else ScrollBlock " class="plx-table" [ngClass]="tableType">
+                <!-- 表头区域 -->
+                <ng-template [ngIf]="showTableHead">
+                    <thead>
+                    <tr>
+                        <th class="plx-table-th plx-table-align-center plx-table-head-checkbox" *ngIf="showCheckBox" width="41px">
+                            <label [class.active]="" class="plx-checkbox-container" *ngIf="checkModel==='multi' ">
+                                <input type="checkbox" class="plx-checkbox" [ngModel]="checkIsAllChecked()"  (ngModelChange)="allCheckStatusChange($event)" [disabled]="!_preparedData || _preparedData.length===0">
+                                <div class="checkbox-substitute"></div>
+                            </label>
+                        </th>
+                        <th class="plx-table-th plx-table-align-center" *ngIf="showRowDropdown" width="60px">
+                            <span>{{rowDetailI18n}}</span>
+                        </th>
+                        <th class="plx-table-th plx-table-align-center" *ngIf="showIndexColumn" width="51px">
+                            <span>{{rowIndexI18n}}</span>
+                        </th>
+                        <th *ngFor="let col of _optimizedScrollCols" class="plx-table-th" 
+                            plx-table-col-width  [col]=col  [colsNativeElement]="colsNativeElement" 
+                            [ngClass]="col?.class "
+                            [ngStyle]="{'width': col.width , 'text-align':col.textAlign }">
+
+                            <!-- 标题自定义popover内容 -->
+                            <i *ngIf="!!col.popOverTitle" class="plx-popover-title plx-ico-help-tip-20" plxPopover="{{col.popOverTitle}}"
+                               placement="top" triggers="hover" container='body'></i>
+                            <span plxPopover="{{col.title}}" class="plx-table-content-span"
+                                  [ngStyle]="col | plxTableThMaxWidth"
+                                  placement="top-left" 
+                                  #p="plxPopover" 
+                                  triggers="manual" 
+                                  plx-table-TdOverflow
+                                  [popover]="p" [colConfig]="col" container="body"
+                            >{{col.title}}</span>
+                            <!-- 排序图标 -->
+                            <plx-table-sort *ngIf="!!col.sort"
+                                            [col]="col"
+                                            [currentSortConf]="sortConf"
+                                            (sortInfoChange)=sortInfoChangeFromView($event)
+                            ></plx-table-sort>
+                            <plx-table-filter-seclect *ngIf="col.filterArray || col?.selectFilterTemplate" 
+                                                      [filterTemplate]="col?.selectFilterTemplate"
+                                                      [selectionArray]="col.filterArray"
+                                                      [columnKey]="col.key"
+                                                      [filterFunc]="col?.filterFunc"
+                                                      (colFilteInfoChange)="columnSelectionFiltInfoChangeFromView($event)"
+                            >
+
+                            </plx-table-filter-seclect>
+                        </th>
+                    </tr>
+                    <tr *ngIf="showColFilter" class="plx-table-subHead">
+                        <!--checkbox 占位-->
+                        <th class="plx-table-th" *ngIf="showCheckBox" width="41px">
+
+                        </th>
+                        <!--详情列占位-->
+                        <th class="plx-table-th" *ngIf="showRowDropdown" width="60px">
+
+                        </th>
+                        <!--序号列占位-->
+                        <th class="plx-table-th" *ngIf="showIndexColumn" width="51px">
+
+                        </th>
+                        <th *ngFor="let col of _optimizedScrollCols" class="plx-table-th"
+                              [ngClass]="col?.class "
+                            [ngStyle]="{'width': col.width}">
+                            <plx-table-filter-col *ngIf="col.filter && !col?.colFilterTemplate" [col]="col" (colFilterInfoChange)="columnFilterInfoChangeFromView($event)">
+
+                            </plx-table-filter-col>
+                            <!-- 应用自定义列过滤模板插入点 -->
+                            <div plx-custom-filter [customTemplate]="col?.colFilterTemplate" *ngIf="col?.filter && col?.colFilterTemplate" ></div>
+
+                        </th>
+                    </tr>
+                    </thead>
+                </ng-template>
+                <!-- 表格体 -->
+                <tbody>
+                <tr *ngFor="let row of data;let rowIndex=index;" #trVcRef [ngClass]="{'plx-table-hlt': row.isChecked}" (click)="trClick($event,row,rowIndex)" >
+                    <td class="plx-table-align-center plx-table-valid-elemt" *ngIf="showCheckBox" >
+                            <label [class.active]="" class="plx-checkbox-container" (click)="checkBoxClick($event,row,rowIndex)">
+                                <input type="checkbox" class="plx-checkbox plx-table-valid-elemt" [ngModel]="row.isChecked" >
+                                <div class="checkbox-substitute" ></div>
+                            </label>
+                    </td>
+                    <td class="plx-table-align-center" *ngIf="showRowDropdown">
+                        <plx-table-row-dropdown [rowIndex]="rowIndex" [showIndexColumn]="showIndexColumn"
+                                                [rowData]="row" [columns]="_columns"  [dropDownTitleWidth]="dropDownTitleWidth"
+                                                [colsTotal]="displayedCols"
+                                                (click)="stopPropagation($event)"
+                        >
+
+                        </plx-table-row-dropdown>
+                    </td>
+
+                    <td class="plx-table-align-center" *ngIf="showIndexColumn">
+                        {{rowIndex+1}}
+                    </td>
+                    <td *ngFor="let col of _optimizedScrollCols;let colIndex=index;" class="plx-table-valid-elemt"  [ngStyle]="{'text-align':col.textAlign }"   [ngClass]="col?.class ">
+                        <!--未配置超长省略的列，不附加指令，降低性能开销  -->
+                        <span *ngIf="col.contentType!=='html' && col.contentType!=='component' && !(col?.class | plxTableOverflow)" 
+                            class="plx-table-valid-elemt plx-table-content-span"
+                            >{{ row[col.key] | plxTableFormat: col.format }}</span>
+                        <!--配置了超长省略的列，才附加指令 -->
+                        <span *ngIf="col.contentType!=='html' && col.contentType!=='component' && (col?.class | plxTableOverflow)" 
+                            class="plx-table-valid-elemt plx-table-content-span"
+                             plxPopover="{{row[col.key] | plxTableFormat: ( col?.popOverFormat || col?.format)}}" 
+                             placement="top-left" #p="plxPopover" triggers="manual"
+                             plx-table-TdOverflow 
+                             [popover]="p" [colConfig]="col" container="body"
+                        >{{ row[col.key] | plxTableFormat: col.format }}</span>
+                        <!--未配置超长省略的列，不附加指令，降低性能开销  -->
+                        <span *ngIf="col.contentType ==='html' && !(col?.class | plxTableOverflow)" [innerHTML]=" row[col.key] | plxTableFormat: col.format"
+                              class="plx-table-content-span"></span>
+                        <!--配置了超长省略的列，才附加指令 -->
+                        <span *ngIf="col.contentType ==='html' && (col?.class | plxTableOverflow)" [innerHTML]=" row[col.key] | plxTableFormat: col.format"
+                             class="plx-table-content-span"
+                             plxPopover="{{row[col.key] | plxTableFormat: ( col?.popOverFormat || col?.format)}}" 
+                             placement="top-left" #p="plxPopover" triggers="manual" 
+                             plx-table-TdOverflow 
+                             [popover]="p" [colConfig]="col" container="body"
+                             ></span>
+                        <plx-table-cell *ngIf=" col.contentType==='component' "
+                                        [rowIndex]="rowIndex"
+                                        [colIndex]="colIndex"
+                                        [currentTotalRows]="_preparedData.length"
+                                        [currentTotalCols]="displayedCols"
+                                        [currentRowData]="row"
+                                        [currentColConfig]="col"
+                                        [componentInputs]="col?.inputs"
+                                        [componentName]="col?.component"
+                                        [componentOutputs]="col?.outputs"
+                                        [columns]="_columns"
+
+                        ></plx-table-cell>
+
+                    </td>
+                </tr>
+                <tr *ngIf="_showNoDataMessage" class="plx-table-nodata-tr">
+                    <td [attr.colspan]="displayedCols" class="plx-table-no-data-img">
+                            <span class="plx-ico-empty-16 no-data-img"></span>
+                            <span class="no-data-message">{{showLoading ? '': noDataMessage}}</span>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+            <!-- 表格出滚动条 -->
+            <ng-template #ScrollBlock>
+                <div class="plx-table-scroll-thead" #srcollhead [ngStyle]="{ 'overflow-y': !!scroll.y ? 'scroll':'hidden','overflow-x':'hidden'}" >
+
+                    <table class="plx-table"
+                           [ngClass]="tableType"
+                           [ngStyle]="{'max-width': scroll.x}"
+                    >
+                        <thead>
+                        <tr>
+                            <th class="plx-tb-occupy-head-left" *ngIf="optimizScrollOnX && _isEnoughCols" ></th>
+                            <th class="plx-table-th plx-table-align-center" *ngIf="showCheckBox" width="41px">
+                                <label [class.active]="" class="plx-checkbox-container" *ngIf="checkModel==='multi' ">
+                                    <input type="checkbox" class="plx-checkbox" [ngModel]="checkIsAllChecked()"  (ngModelChange)="allCheckStatusChange($event)" [disabled]="!_preparedData || _preparedData.length===0">
+                                    <div class="checkbox-substitute"></div>
+                                </label>
+                            </th>
+                            <th class="plx-table-th plx-table-align-center" *ngIf="showRowDropdown" width="60px">
+                                <span>{{rowDetailI18n}}</span>
+                            </th>
+                            <th class="plx-table-th plx-table-align-center" *ngIf="showIndexColumn" width="51px">
+                                <span>{{rowIndexI18n}}</span>
+                            </th>
+                            <th *ngFor="let col of _optimizedScrollCols; last as isLast" class="plx-table-th" 
+                                plx-table-col-width [col]=col [colsNativeElement]="colsNativeElement" [isLast]="isLast"
+                                [ngClass]="col?.class"
+                                [ngStyle]="{'width': col.width , 'text-align':col.textAlign }">
+                                <!-- 标题自定义popover内容 -->
+                                <i *ngIf="!!col.popOverTitle" class="plx-popover-title plx-ico-help-tip-20" plxPopover="{{col.popOverTitle}}"
+                                   placement="top" triggers="hover" container='body'></i>
+                                <span plxPopover="{{col.title}}" class="plx-table-content-span"
+                                      [ngStyle]="col | plxTableThMaxWidth"
+                                     placement="top-left" #p="plxPopover" triggers="manual" container='body' 
+                                     plx-table-TdOverflow [popover]="p" [colConfig]="col" container="body"
+                                >{{col.title}}</span>
+                                <!-- 排序图标 -->
+                                <plx-table-sort *ngIf="col.sort"
+                                                [col]="col"
+                                                [currentSortConf]="sortConf"
+                                                (sortInfoChange)=sortInfoChangeFromView($event)
+                                ></plx-table-sort>
+                                <plx-table-filter-seclect *ngIf="col.filterArray || col?.selectFilterTemplate"
+                                                         [filterTemplate]="col?.selectFilterTemplate"
+                                                         [selectionArray]="col.filterArray" 
+                                                         [columnKey]="col.key" 
+                                                         [filterFunc]="col?.filterFunc" 
+                                                         (colFilteInfoChange)="columnSelectionFiltInfoChangeFromView($event)"
+                                >
+                                </plx-table-filter-seclect>
+                            </th>
+                            <th class="plx-tb-occupy-head-right" *ngIf="optimizScrollOnX && _isEnoughCols"></th>
+                        </tr>
+                        <tr *ngIf="showColFilter" class="plx-table-subHead">
+                            <th *ngIf="optimizScrollOnX && _isEnoughCols"></th>
+                            <!--checkbox 占位-->
+                            <th class="plx-table-th" *ngIf="showCheckBox" width="41px">
+
+                            </th>
+                            <!--详情列占位-->
+                            <th class="plx-table-th" *ngIf="showRowDropdown" width="60px">
+
+                            </th>
+                            <!--序号列占位-->
+                            <th class="plx-table-th" *ngIf="showIndexColumn" width="51px">
+
+                            </th>
+                            <th *ngFor="let col of _optimizedScrollCols" class="plx-table-th"
+                                [ngClass]="col?.class "
+                                [ngStyle]="{'width': col.width}">
+                                <plx-table-filter-col *ngIf="col.filter && !col?.colFilterTemplate" [col]="col" (colFilterInfoChange)="columnFilterInfoChangeFromView($event)">
+
+                                </plx-table-filter-col>
+                                <!-- 应用自定义列过滤模板插入点 -->
+                                <div plx-custom-filter [customTemplate]="col?.colFilterTemplate" *ngIf="col?.filter && col?.colFilterTemplate"></div>
+
+                            </th>
+                            <th *ngIf="optimizScrollOnX && _isEnoughCols"></th>
+                        </tr>
+                        </thead>
+                    </table>
+
+                </div>
+
+                <div class="plx-table-scroll-tbody" #srcollbody [ngStyle]="{'max-height': scroll.y , 'overflow-y': !!scroll.y ? 'scroll':'hidden','padding-bottom': '1px','overflow-anchor':'none'}" 
+                (resize)="resizeOnScrollBody($event)"
+                (scroll)="scrollOnX($event)">
+                    <table class="plx-table" [ngClass]="tableType"
+                           [ngStyle]="{'max-width': scroll.x}"
+                    >
+                        <colgroup>
+                            <col class="plx-tb-occupy-body-left" *ngIf="optimizScrollOnX && _isEnoughCols">
+                            <col *ngIf="showCheckBox" width="41px">
+                            <col *ngIf="showRowDropdown" width="60px">
+                            <col *ngIf="showIndexColumn" width="51px">
+                            <col *ngFor="let col of _optimizedScrollCols" [ngStyle]="{'width': col.width}">
+                            <col class="plx-tb-occupy-body-right" *ngIf="optimizScrollOnX && _isEnoughCols">
+                        </colgroup>
+                        <tbody>
+                        <tr class="plx-tb-occupy-header" *ngIf="optimizScrollOnY" >
+
+                        </tr>
+                        <tr *ngFor="let row of data;let rowIndex=index;" #trVcRef [ngClass]="{'plx-table-hlt': row.isChecked}" (click)="trClick($event,row,rowIndex)">
+                            <td *ngIf="optimizScrollOnX && _isEnoughCols"></td>
+                            <td class="plx-table-align-center plx-table-valid-elemt" *ngIf="showCheckBox" >
+                                <label [class.active]="" class="plx-checkbox-container" (click)="checkBoxClick($event,row,rowIndex)">
+                                    <input type="checkbox" class="plx-checkbox plx-table-valid-elemt" [ngModel]="row.isChecked" >
+                                    <div class="checkbox-substitute" ></div>
+                                </label>
+                            </td>
+                            <td class="plx-table-align-center" *ngIf="showRowDropdown">
+                                <plx-table-row-dropdown [rowIndex]="rowIndex" [showIndexColumn]="showIndexColumn"
+                                                        [rowData]="row" [columns]="_columns"  [dropDownTitleWidth]="dropDownTitleWidth"
+                                                        [colsTotal]="displayedCols"
+                                                        (click)="stopPropagation($event)">
+
+                                </plx-table-row-dropdown>
+                            </td>
+
+                            <td class="plx-table-align-center" *ngIf="showIndexColumn">
+                                {{rowIndex+_sliceIndex+1}}
+                            </td>
+                            <td *ngFor="let col of _optimizedScrollCols;let colIndex=index;" 
+                                class="plx-table-valid-elemt" 
+                                [ngStyle]="{'text-align':col.textAlign }"   
+                                [ngClass]="col?.class "
+                            >
+                                    <!--未配置超长省略的列，不附加指令，降低性能开销  -->
+                                    <span *ngIf="col.contentType!=='html' && col.contentType!=='component' && !(col?.class | plxTableOverflow)" 
+                                        class="plx-table-valid-elemt plx-table-content-span" 
+                                        >{{ row[col.key] | plxTableFormat: col.format }}</span>
+                                    <!--配置了超长省略的列，才附加指令 -->
+                                    <span *ngIf="col.contentType!=='html' && col.contentType!=='component' && (col?.class | plxTableOverflow)" 
+                                        class="plx-table-valid-elemt plx-table-content-span"
+                                        plxPopover="{{row[col.key] | plxTableFormat: ( col?.popOverFormat || col?.format)}}"
+                                        placement="top-left" #p="plxPopover" triggers="manual" 
+                                        plx-table-TdOverflow [popover]="p" [colConfig]="col"  container="body"
+                                        >{{ row[col.key] | plxTableFormat: col.format }}</span>
+                                    <!--未配置超长省略的列，不附加指令，降低性能开销  -->
+                                    <span *ngIf="col.contentType ==='html' && !(col?.class | plxTableOverflow)" [innerHTML]=" row[col.key] | plxTableFormat: col.format"
+                                        class="plx-table-content-span"></span>
+                                    <!--配置了超长省略的列，才附加指令 -->
+                                    <span *ngIf="col.contentType ==='html' && (col?.class | plxTableOverflow)" [innerHTML]=" row[col.key] | plxTableFormat: col.format"
+                                        class="plx-table-content-span" plxPopover="{{row[col.key] | plxTableFormat: ( col?.popOverFormat || col?.format)}}" placement="top-left"
+                                        #p="plxPopover" triggers="manual" plx-table-TdOverflow [popover]="p" [colConfig]="col" container="body"></span>
+                                <plx-table-cell *ngIf=" col.contentType==='component' "
+                                                [rowIndex]="rowIndex"
+                                                [colIndex]="colIndex"
+                                                [currentTotalRows]="_preparedData.length"
+                                                [currentTotalCols]="_optimizedScrollCols.length"
+                                                [currentRowData]="row"
+                                                [currentColConfig]="col"
+                                                [componentInputs]="col?.inputs"
+                                                [componentName]="col?.component"
+                                                [componentOutputs]="col?.outputs"
+                                                [columns]="_columns"
+                                ></plx-table-cell>
+                            </td>
+                            <td *ngIf="optimizScrollOnX && _isEnoughCols"></td>
+                        </tr>
+                        <tr *ngIf="_showNoDataMessage" class="plx-table-nodata-tr">
+                            <td *ngIf="optimizScrollOnX && _isEnoughCols"></td>
+                            <td [attr.colspan]="displayedCols" class="plx-table-no-data-img">
+                                    <!-- 无数据图标 -->
+                                <div class="plx-table-nodata-wrapper" [ngStyle]="{'top': _trHeight | plxTableCTH:this, 'margin-top': _trHeight | plxTableCTH }" >
+                                    <span class="plx-ico-empty-16 no-data-img"></span>
+                                    <span class="no-data-message">{{showLoading ? '': noDataMessage}}</span>
+                                </div>
+                               
+                            </td>
+                            <td *ngIf="optimizScrollOnX && _isEnoughCols"></td>
+                        </tr>
+                        <tr class="plx-tb-occupy-footer" *ngIf="optimizScrollOnY">
+
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </ng-template>
+            <div class="plx-table-body">
+            </div>
+            <!-- 列宽调整元素 -->
+            <div class="plx-table-rc-container">
+                <div class="plx-table-rc" *ngFor="let item of _optimizedScrollCols | plxTableColResizableHandle:lastColKey; last as isLast;" plx-table-resizable-col
+                    [colNativeElement]="item?.nativeElement" [isResizing]="isResizing" (mouseDown)="resizableColMouseDown($event)"
+                    [scrollLeft]="_scrollLeft" [resizeDelta]="resizeDelta" [resizingColKey]="resizeColKey" [col]="item"
+                     [windowResizeObservable]="windowResizeObservable"
+                    ></div>
+            </div>
+
+        </div>
+
+        <div class="plx-table-pagnation-content" >
+            <plx-table-pagination *ngIf="showPagination"
+                    [pageSize]="_pageSize"
+                    [pageIndex]="_pageIndex"
+                    [maxPageIndex]="_maxPageIndex"
+                    [total]="_total"
+                    [pageSizeSelections]="pageSizeSelections"
+                    (pageChangeOutput)="pageInfoChangeFromView($event)"
+
+            >
+            </plx-table-pagination>
+            <ng-content select=".plx-table-footnote"></ng-content>
+
+
+        </div>
+    </div>
+
+
+
+</div>
+
