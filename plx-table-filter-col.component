@@ -1,0 +1,128 @@
+/////// plx-table-filter-col.component.html
+<div class="plx-table-col-filter"
+     (click)="focusToggle(true)"  [ngClass]="{'plx-filter-focused': filterFocused}"
+>
+
+    <div class="plx-table-col-icon-wrapper">
+        <span class="plx-ico-filter-16"></span>
+    </div>
+
+        <input (blur)="focusToggle(false)"
+               [(ngModel)]="queryString"
+
+        />
+
+
+
+</div>
+
+/////////// plx-table-filter-col.component.less
+@import "../../assets/themes/default/theme.less";
+.plx-table-col-filter{
+    border: 1px solid @border-color-base;
+    margin:5px;
+    box-sizing: border-box;
+    height: 30px;
+    & input{
+        width: calc(~"100% - 25px");
+        line-height: normal;
+        font-weight: normal;
+        border: none;
+        height:26px;
+        font-size: @font-size;
+        box-sizing: border-box;
+        &:focus{
+            outline:none;
+        }
+    }
+    & .filterIcon{
+        /*position: absolute;*/
+        top: 6px;
+        left: 3px;
+        fill: #dedede;
+        width: 14px;
+    }
+}
+
+.plx-filter-focused{
+    outline:none;
+    border:1px solid @primary-color;
+
+}
+.plx-table-col-icon-wrapper{
+    padding-left: 5px;
+    display: inline-block;
+    line-height: 28px;
+    span{
+        vertical-align: sub;
+    }
+    .plx-ico-filter-16:before {
+        font-size: 16px;
+        color: @disabled-text-color;
+    }
+}
+
+::-webkit-input-placeholder { /* WebKit browsers */
+    color: #c1c1c1;
+}
+:-moz-placeholder { /* Mozilla Firefox 4 to 18 */
+    color: #c1c1c1;
+}
+::-moz-placeholder { /* Mozilla Firefox 19+ */
+    color: #c1c1c1;
+}
+:-ms-input-placeholder { /* Internet Explorer 10+ */
+    color: #c1c1c1;
+}
+//////////////////// 
+import {Component, OnInit, Input, Output, EventEmitter, ViewEncapsulation} from '@angular/core';
+
+
+@Component({
+  selector: 'plx-table-filter-col',
+  encapsulation: ViewEncapsulation.None,
+  templateUrl: 'plx-table-filter-col.component.html',
+  styleUrls: ['plx-table-filter-col.component.less']
+})
+export class PlxTableFilterColComponent implements OnInit {
+
+  @Input() col: any;
+
+  @Output() colFilterInfoChange:EventEmitter<any>= new EventEmitter<any>();
+
+  private _queryString:string='';
+
+
+
+  public filterFocused:boolean=false;
+
+  timeOutHandle:any;
+
+  delay:number=500;
+
+  constructor() { }
+
+  ngOnInit() {
+  }
+  focusToggle(value) {
+    this.filterFocused=value;
+  }
+  public set queryString(value) {
+    this._queryString=value.trim();
+    if (this.timeOutHandle) {
+      clearTimeout(this.timeOutHandle);
+    }
+    this.timeOutHandle = setTimeout(() => {
+      this.colFilterInfoChange.emit({
+        key:this.col.key,
+        filterKey:this.queryString,
+        filterFunc:this.col.filterFunc
+      });
+
+    }, this.delay);
+  };
+  public get  queryString() {
+    return this._queryString;
+  };
+
+}
