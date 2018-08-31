@@ -1,0 +1,205 @@
+///////  
+<div class="plx-table-selectFilter-wrapper"  [attr.data-id]="columnKey"  (click)="panelToggle(p)">
+  <div class="plx-table-selectFilter-icon" 
+      [ngClass]="{'icon-selectFilter-activtied': hasSelected }" 
+       placement="bottom"
+       [attr.data-id]="columnKey"
+      [plxPopover]="popContent" triggers="manual" #p="plxPopover" container="body"
+     >
+   <span class="plx-ico-filter-f-16" [attr.data-id]="columnKey" ></span>
+  </div>
+  <ng-template #popContent>
+      <div class="plx-table-selectFilter-panel" (click)="stopPropagation($event)">
+        <div *ngIf="!!filterTemplate; else defaultTmp" plx-custom-filter [customTemplate]="filterTemplate">
+          <!-- 应用自定义列过滤模板插入点 -->
+          <div></div>
+        </div>
+        <ng-template #defaultTmp>
+          <div style="margin:5px auto 0px auto;width:30px" *ngIf="_isOnLoading">
+            <plx-loading type="min"></plx-loading>
+          </div>
+          <div style="overflow-y: auto;max-height: 200px;">
+              <div *ngFor="let item of _sArray" class="plx-table-s-item">
+                  <label class="plx-checkbox-container">
+                      <input type="checkbox" class="plx-checkbox" [(ngModel)]="item.checked">
+                      <div class="checkbox-substitute"></div>
+                      <span>{{item.filterKey}}</span>
+                  </label>
+              </div>
+          </div>
+          <div class="plx-table-confirm-area" *ngIf="_sArray.length > 0">
+            <button class="plx-btn plx-btn-primary plx-btn-xs" (click)="confirmChange(p)">{{confirmI18n}}</button>
+            <button class="plx-btn plx-btn-xs" (click)="p.close()">{{cancelI18n}}</button>
+          </div>
+        </ng-template>
+      
+      </div>
+ </ng-template>
+
+</div>
+<!--[ngModel]="item.show" (ngModelChange)="colsChanged($event,item)"-->
+
+
+/////////// 
+@import "../../assets/themes/common/plx-checkbox.less";
+
+.plx-table-selectFilter-wrapper{
+    display: inline-block;
+    vertical-align: middle;
+    cursor: pointer;
+    /*此处 若不为absolute则被td遮挡*/
+}
+.plx-table-selectFilter-icon {
+    line-height: @font-size;
+}
+.plx-table-selectFilter-icon .plx-ico-filter-f-16{
+    vertical-align: baseline;
+    color: @unselected-text-color;
+}
+.icon-selectFilter-activtied .plx-ico-filter-f-16{
+    color:@primary-color;
+}
+
+.plx-table-selectFilter-panel{
+    background-color: #fff;
+    right: 0px;
+    min-width: 100px;
+    /*此处若为absolute则文本要换行，恩，玄学*/
+    //position: absolute;
+    span{
+        vertical-align: -25%;
+        font-size: @font-size;
+    }
+    label{
+
+        line-height: normal;
+    }
+    .plx-table-s-item {
+        line-height: normal;
+        height: 30px;
+        label {
+            width: 100%;
+            margin-bottom: 0px;
+        }
+    }
+    .plx-table-confirm-area{
+        padding: @plx-space-sm 0px;
+        display: flex;
+        justify-content: center;
+    }
+
+}
+///////////
+import { Component, OnInit, Input, Output, EventEmitter, HostListener, TemplateRef, ViewEncapsulation } from '@angular/core';
+import { FiltersArrayItem } from "../classes/until.interface";
+import { PlxTableI18nService } from "../classes/plx-table-i18n.service";
+import { PlxPopover } from '../../plx-popover/plx-popover.module';
+@Component({
+  selector: 'plx-table-filter-seclect',
+  encapsulation: ViewEncapsulation.None,
+  templateUrl: 'plx-table-filter-seclect.component.html',
+  styleUrls: ['plx-table-filter-seclect.component.less'],
+  providers: [PlxPopover]
+})
+export class PlxTableFilterSeclectComponent implements OnInit {
+  //保存输入的选项
+  _selectionArray: Array<FiltersArrayItem> = [];
+  //暂存未确认前的修改
+  _sArray: Array<FiltersArrayItem> = [];
+  //
+  _getSelectionArrayFunc: any;
+  @Input() filterTemplate: TemplateRef<any>;
+  @Input()
+  set selectionArray(value: any) {
+    if (value instanceof Array) {
+      this._selectionArray = value;
+    } else {
+      this._getSelectionArrayFunc = value;
+    }
+  }
+  get selectionArray() {
+    return this._selectionArray;
+  }
+  @Input() columnKey: string;
+  @Input() filterFunc: any;
+  @Output() colFilteInfoChange: EventEmitter<any> = new EventEmitter<any>();
+  _isOnLoading: boolean = false;
+  constructor(private i18nService: PlxTableI18nService) {
+
+  }
+  showPannel: boolean = false;
+
+  hasSelected: boolean;
+  confirmI18n: string;
+  cancelI18n: string;
+  _popoverContext: any;
+
+  ngOnInit() {
+    this.confirmI18n = this.i18nService.getI18n('confirm');
+    this.cancelI18n = this.i18nService.getI18n('cancel');
+    this.checkHasSelected();
+  }
+  panelToggle(popOverContext: any) {
+    this.showPannel = !this.showPannel;
+    //打开面板
+    if (this.showPannel) {
+      this._popoverContext = popOverContext;
+      popOverContext.open();
+      //传入的是个方法
+      this._sArray = [];
+      if (this._getSelectionArrayFunc instanceof Function) {
+        this._isOnLoading = true;
+        let result = this._getSelectionArrayFunc(this.columnKey);
+        if (result instanceof Promise) {
+          result.then((value) => {
+            this._sArray = value;
+            this._isOnLoading = false;
+          });
+        }
+        // 传入的是个数组    
+      } else {
+
+        this._selectionArray.forEach((item) => {
+          let newItem: any = {};
+          newItem['filterKey'] = item['filterKey'];
+          newItem['checked'] = item['checked'];
+          this._sArray.push(newItem);
+        });;
+      }
+    }
+    this.checkHasSelected();
+  }
+
+  checkHasSelected() {
+    this.hasSelected = false;
+    this._selectionArray.forEach((item) => {
+      if (item.checked) {
+        this.hasSelected = true;
+      }
+    });
+  }
+
+  confirmChange(popOverContext) {
+    // this.panelToggle();
+    //状态保存
+    popOverContext.close();
+    this._selectionArray.splice(0, this._selectionArray.length);
+    this._sArray.forEach((item) => {
+      this._selectionArray.push(item);
+    });
+    this.colFilteInfoChange.emit({
+      key: this.columnKey,
+      filters: this._sArray,
+      filterFunc: this.filterFunc
+    });
+    this.checkHasSelected();
+  }
+
+  stopPropagation(event) {
+    event.stopPropagation();
+  }
+
+
+}
+
+
