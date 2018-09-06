@@ -1,0 +1,146 @@
+//////////////html
+<div class="plx-table-filter">
+    <div style="display:inline-block;font-size: 0px" *ngIf="showGlobalFilter">
+        <div class="plx-table-search-noinstant">
+            <plx-search *ngIf="searchInstant" [searchTip]="filterTip"
+                        [placeholder]="placeholder" wait="0"
+                        (search)="search($event)"></plx-search>
+            <plx-search *ngIf="!searchInstant" wait="0" mode="confirm"
+                        [searchTip]="filterTip" [placeholder]="placeholder"
+                        (search)="search($event)"></plx-search>
+        </div>
+      
+    </div>
+    <span class="plx-table-filterToggle" *ngIf="showColFilterToggle">
+        <button class="plx-icon-btn" (click)="colFilterToggle()" [ngClass]="{'plx-ico-filter-16': !showColFilter,'plx-ico-filter-f-16':showColFilter}"
+                placement="top" plxTooltip="{{filterInTable}}"></button>
+    </span>
+</div>
+/////////////////////less
+@import "../../assets/themes/default/theme.less";
+
+
+.plx-table-query-icon {
+    display: inline-block;
+    position: relative;
+    top: 2px;
+    left: 25px;
+}
+.plx-table-search-noinstant{
+    width: 200px;
+}
+.plx-table-filter {
+    float: right;
+    font-size: 0;
+    margin-bottom: 10px;
+    .plx-ico-magnifier-16 {
+        font-size: 16px;
+        color: @disabled-text-color;
+    }
+}
+
+
+.plx-table-filterToggle{
+    margin-left: 10px;
+    .plx-icon-btn {
+        vertical-align: middle;
+    }
+    .plx-ico-filter-f-16:before{
+        color:@primary-color;
+    }
+}
+.plx-table-filter-icon-wrapper{
+    vertical-align: middle;
+    display: inline-block;
+    padding-top: 5px;
+}
+
+.plx-table-filterIcon{
+    fill: @text-color;
+}
+/////////////////ts
+import {
+    Component,
+    OnInit,
+    Input,
+    ChangeDetectionStrategy,
+    ViewEncapsulation,
+    Output,
+    EventEmitter
+} from '@angular/core';
+import {PlxTableI18nService} from "../classes/plx-table-i18n.service";
+
+@Component({
+    selector: 'plx-table-filter',
+    encapsulation: ViewEncapsulation.None,
+    templateUrl: 'plx-table-filter.component.html',
+    styleUrls: ['plx-table-filter.component.less']
+})
+export class PlxTableFilterComponent implements OnInit {
+    // 设置是否及时搜索
+    @Input() searchInstant:boolean=true;
+
+    @Input() cols: Array<any>;
+
+    @Input() showColFilterToggle:boolean=true;
+
+    @Input() showGlobalFilter: boolean;
+
+    @Input() placeholder: string;
+
+    @Input() filterTip: string;
+
+    @Output() filterInfoChange: EventEmitter<any> = new EventEmitter<any>();
+
+    @Output() filterToggleChange: EventEmitter<any> = new EventEmitter<any>();
+
+    showColFilter:boolean=false;
+
+    _queryString: string ='';
+
+    timeOut: any;
+
+    delay:number=500;
+
+    placeholderI18n: string;
+
+    private hasNotBeenSearched:boolean;
+
+    filterInTable: string;
+
+    constructor(private plxTableI18nService: PlxTableI18nService) {
+    }
+
+    ngOnInit() {
+        this.hasNotBeenSearched=true;
+        this.placeholderI18n=this.plxTableI18nService.getI18n('filterPlaceholder');
+        this.filterInTable=this.plxTableI18nService.getI18n('filterInTable');
+    }
+
+    set queryString(value) {
+        // IE 11 在初始化会触发一个空的搜索，此处略过该搜索
+        if(value===''&& this.hasNotBeenSearched){
+            this.hasNotBeenSearched=false;
+            return ;
+        }
+        this.hasNotBeenSearched=false;
+        this._queryString=value.trim();
+        if (this.timeOut) {
+            clearTimeout(this.timeOut);
+        }
+        this.timeOut = setTimeout(() => {
+            this.filterInfoChange.emit(this.queryString);
+        }, this.delay);
+    }
+    get queryString() {
+        return this._queryString;
+    }
+    colFilterToggle(){
+        this.showColFilter=!this.showColFilter;
+        this.filterToggleChange.emit(this.showColFilter);
+    }
+    search(searchStr:string){
+        this.queryString = searchStr;
+    }
+}
+
