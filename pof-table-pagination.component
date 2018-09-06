@@ -1,0 +1,245 @@
+//////////////////////html
+<nav class="plx-table-pagination">
+  <ul class="plx-table-pagination-content">
+    <li class="plx-table-pagination-item">
+      <span>{{totalI18n}} </span>
+      <span>{{total}} </span>
+      <span>{{recordsI18n}}&nbsp;</span>
+    </li>
+    <li class="plx-table-pagination-item">
+      <span>{{pageSizeI18n}}</span>
+      <select #selectPerpage  [ngModel]="_pageSize" (ngModelChange)="pageSizeChange($event)">
+        <option #initOption *ngFor="let item of pageSizeSelections" value="{{item}}">{{item}}</option>
+      </select>
+      <span>{{recordsI18n}}&nbsp;</span>
+    </li>
+    <!-- 往前翻页 -->
+    <li class="plx-table-pagination-item ">
+      <a class="plx-table-pagination-nav"
+         [ngClass]="{'plx-table-pagination-disabled': _pageIndex <= 1 }"
+         (click)="pageIndexNav(-1)">
+        <span aria-hidden="true" >&lt;</span>
+      </a>
+    </li>
+
+    <li class="plx-table-pagination-item ">
+      <input type="text" 
+            [(ngModel)]="_pageIndex" 
+            (input)="pageIndexChange($event)"
+            #inputPager 
+            class="plx-table-pagination-input">
+    </li>
+    <li class="plx-table-pagination-item ">
+      <span>/ {{maxPageIndex}} </span>
+      <span>{{pageIndexI18n}}</span>
+    </li>
+
+    <!-- 往后翻页 -->
+    <li class="plx-table-pagination-item ">
+      <a class="plx-table-pagination-nav"
+         [ngClass]="{'plx-table-pagination-disabled': _pageIndex>=maxPageIndex}"
+         (click)="pageIndexNav(1)">
+        <span aria-hidden="true" >&gt;</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+////////////////less
+@import "../../assets/themes/default/theme.less";
+.plx-table-pagination{
+    float: right;
+    font-family: @font-family ;
+    font-size: @font-size;
+    color:@text-color;
+    margin-top:10px;
+    margin-bottom:10px;
+}
+.plx-table-pagination-content{
+    display: inline-block;
+    text-decoration:none;
+    font-size: 0;
+}
+.plx-table-pagination-item{
+    list-style-type: none;
+    display: inline-block;
+    vertical-align: middle;
+    & span{
+        vertical-align: middle;
+    }
+    & select{
+        vertical-align: middle;
+        height: 26px;
+        width: 45px;
+        border: 1px solid @border-color-base;
+        margin: 0 4px;
+    }
+    & * {
+        font-size: @font-size;
+    }
+}
+
+.plx-table-pagination-input{
+    padding: 1px;
+    height: 26px;
+    width: 45px;
+    margin-left:4px;
+    margin-right:4px;
+    font-size: 12px;
+    color: @text-color;
+    box-sizing:border-box;
+    border: 1px solid @border-color-base;
+    text-align: center;
+    vertical-align: middle;
+}
+.plx-table-pagination-nav{
+    display: inline-block;
+    height: 26px;
+    border: 1px solid @border-color-base;
+    font-size:14px;
+    text-decoration:none;
+    color:@text-color;
+    margin-left:4px;
+    padding-left:6px;
+    padding-right:6px;
+    cursor: pointer;
+    text-align: center;
+    vertical-align: middle;
+    box-sizing:border-box;
+}
+a:not([href]):not([tabindex]).plx-table-pagination-disabled{
+
+        color: @disabled-text-color;
+        cursor: not-allowed;
+
+}
+///////////////////ts
+import { Component, OnInit, Input, Output, EventEmitter, ViewEncapsulation } from '@angular/core';
+import {PlxTableI18nService} from "../classes/plx-table-i18n.service";
+
+@Component({
+  selector: 'plx-table-pagination',
+  encapsulation: ViewEncapsulation.None,
+  templateUrl: 'plx-table-pagination.component.html',
+  styleUrls: ['plx-table-pagination.component.less']
+})
+export class PlxTablePaginationComponent implements OnInit {
+  @Output() pageChangeOutput: EventEmitter<any> = new EventEmitter<any>();
+
+  @Input() maxPageIndex:number;
+
+  @Input() total:number;
+  
+  @Input() pageSizeSelections: Array<number>;
+
+  @Input()
+  set pageIndex(value) {
+    this._pageIndex = value;
+    this._lastPageIndex=this._pageIndex;
+    
+  };
+  get pageIndex() {
+    return this._pageIndex;
+  }
+
+  @Input()
+  set pageSize(value) {
+    this._pageSize = value;
+   
+  }
+  get pageSize() {
+    return this._pageSize;
+  }
+  isInited:boolean=false;
+  _pageSize:number;
+
+
+  _pageIndex:any;
+
+  _lastPageIndex:number;
+
+  pageSizeChangeTimeout:any;
+
+  private delay=1500;
+
+  totalI18n: string;
+
+  pageSizeI18n: string;
+
+  pageIndexI18n: string;
+
+  recordsI18n: string;
+
+  constructor(private plxTableI18nService:PlxTableI18nService) { }
+
+  ngOnInit() {
+    this.totalI18n=this.plxTableI18nService.getI18n('total');
+    this.pageSizeI18n=this.plxTableI18nService.getI18n('pageSize');
+    this.pageIndexI18n=this.plxTableI18nService.getI18n('pageIndex');
+    this.recordsI18n=this.plxTableI18nService.getI18n('records');
+  }
+
+  pageSizeChange(event: any){
+    this._pageSize = parseInt(event);
+    this.pageChangeOutput.emit({pageSize:this._pageSize,pageIndex:this._pageIndex});
+  }
+
+  pageIndexCorrect(value){
+    value = parseInt(value);
+    if(isNaN(value)){
+      return this._lastPageIndex;
+    }
+    if (value > this.maxPageIndex) {
+      return this.maxPageIndex;
+    }
+    if (value < 1) {
+      return  1;
+    }
+    this._lastPageIndex=value;
+    return value;
+  }
+
+  pageIndexChange(event: any){
+    let deleteKey:any = ['Delete', 'Backspace'];
+    let tempIndex=Number.parseInt(event.target.value);
+    this._pageIndex = tempIndex;
+    event.target.value = tempIndex;
+    if (isNaN(tempIndex) && deleteKey.indexOf(event.key) == -1){
+      this._pageIndex = this._lastPageIndex;
+      return;
+    }
+   
+    if(event.which === 13) { // enter
+      if (this.pageSizeChangeTimeout) { // 取消延迟
+        clearTimeout(this.pageSizeChangeTimeout);
+      }
+      this._pageIndex=this.pageIndexCorrect(this._pageIndex);
+      this.pageChangeOutput.emit({ pageSize: this._pageSize, pageIndex: this._pageIndex });
+    } else if(event.which !== 9) { // 非 tab 键
+      if (this.pageSizeChangeTimeout) {
+          clearTimeout(this.pageSizeChangeTimeout);
+      }
+      this.pageSizeChangeTimeout=setTimeout(()=>{
+        this._pageIndex = this.pageIndexCorrect(this._pageIndex);
+        this.pageChangeOutput.emit({ pageSize: this._pageSize, pageIndex: this._pageIndex });
+      }, this.delay);
+    }
+   
+  }
+
+  pageIndexNav(value){
+    if(typeof this._pageIndex !== 'number'){
+      this._pageIndex=parseInt(this._pageIndex);
+    }
+    if(this._pageIndex<=1 && value === -1){
+      return;
+    }
+    if(this._pageIndex>=this.maxPageIndex && value === 1){
+      return;
+    }
+    this._pageIndex=this._pageIndex+value;
+    this.pageChangeOutput.emit({ pageSize: this._pageSize, pageIndex: this._pageIndex });
+  }
+
+}
+
