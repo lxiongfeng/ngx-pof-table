@@ -1,0 +1,153 @@
+////////////html
+<div (click)="toggle()" class="plx-table-dropdown-wrapper">
+  <i *ngIf="!isOpen" class="plx-ico-up-16"></i>
+  <i *ngIf="isOpen" class="plx-ico-down-16"></i>
+</div>
+
+
+<ng-template #template >
+  <tr class='plx-table-innerTr'>
+    <td  [attr.colspan] ="_colsTotal"  id='plx-table-innerTd'>
+      <table class="plx-table-innerTable">
+        <tbody>
+        <tr *ngFor="let col of _cols;let i=index; let Odd=odd;let Even=even "
+            [ngClass]="{'odd':Odd,'even':Even}">
+          <td id='plx-inner-table-title' [ngStyle]="{'width': dropDownTitleWidth}">
+              <span style="display: inline-block">{{col.title}}</span>
+          </td>
+          <td id='plx-inner-table-content'>
+              {{ rowData[col.key]}}
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </td>
+  </tr>
+</ng-template>
+///////////////less
+@import "../../assets/themes/default/theme.less";
+.plx-table-dropdown-wrapper {
+    cursor: pointer;
+    .plx-ico-up-16,.plx-ico-down-16 {
+        font-size: 20px;
+        color: @primary-color;
+    }
+}
+.plx-table-dropdown-icon-shared{
+    font-size:20px;
+    line-height: 2.2 !important;
+    cursor:pointer;
+}
+.plx-table-dropdown-icon-polyline-shared{
+    height:16px;
+    width:16px;
+    stroke: #00abff ;
+}
+
+.plx-table-innerTr{
+    border: 1px solid @border-color-base;
+    & #plx-table-innerTd {
+        padding: 0px;
+    }
+}
+
+.plx-table-innerTable{
+    width:100%;
+    & tr{
+        color:@text-color;
+        font-size:@font-size;
+        & td#plx-inner-table-title,td#plx-inner-table-content{
+            padding: 8px;
+            height: 40px;
+            border: none;
+            border-bottom: 1px solid @border-color-base;
+            word-break: break-all;
+        }
+        & td:first-child{
+            text-align: right;
+        }
+        & td:last-child{
+            text-align: left;
+        }
+    }
+    & tr:last-child {
+        & td#plx-inner-table-title,td#plx-inner-table-content {
+            border-bottom: none;
+        }
+    }
+}
+
+///////////////ts
+
+import {Component, OnInit, Input, ViewChild, ChangeDetectorRef, ViewEncapsulation} from '@angular/core';
+import {ViewContainerService} from "../classes/plx-table-viewContainer.service";
+
+@Component({
+  selector: 'plx-table-row-dropdown',
+  encapsulation: ViewEncapsulation.None,
+  templateUrl: 'plx-table-row-dropdown.component.html',
+  styleUrls: ['plx-table-row-dropdown.component.less']
+})
+export class PlxTableRowDropdownComponent implements OnInit {
+  @ViewChild('template') public mtp: any;
+  @Input() showIndexColumn: boolean;
+  @Input() showCheckBox: boolean;
+  @Input() rowData: any;
+  @Input()
+  set colsTotal(value:number) {
+
+    if(this.isInit) {
+      setTimeout(()=>{
+        this._colsTotal=value;
+      });
+
+    }else {
+      this._colsTotal=value;
+    }
+  }
+  get colsTotal() {
+    return this._colsTotal;
+  }
+  @Input() rowIndex: number;
+  @Input() columns: any;
+  @Input() dropDownTitleWidth;
+  public isOpen=false;
+  private trRef;
+  public columnNumber;
+  private tmp;
+  private _colsTotal:number;
+  private isInit:boolean=false;
+
+  public get _cols() {
+    let temp=[];
+    this.columns.forEach((item) => {
+       if(!!item.showInDropdown) {
+         if (!!this.rowData && this.rowData.hasOwnProperty(item.key)){
+           temp.push(item);
+         }
+         
+       }
+    }) ;
+
+    return temp;
+  }
+
+  constructor(private vcRefService:ViewContainerService,private cd: ChangeDetectorRef) { }
+
+  ngOnInit() {
+    this.isInit=true;
+  }
+  toggle(){
+    this.isOpen=!this.isOpen;
+    if(this.isOpen){
+     this.trRef= this.vcRefService.getViewContainerList()[this.rowIndex];
+      this.tmp=this.trRef.createEmbeddedView(this.mtp);
+    }else {
+      this.tmp.destroy()
+    }
+  }
+
+}
+
+
+
