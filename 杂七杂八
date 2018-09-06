@@ -1,0 +1,926 @@
+ngc：
+{
+  "compilerOptions": {
+    "target": "es5",
+    "module": "es2015",
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "removeComments": true,
+    "noImplicitAny": false,
+    "declaration": true,
+    "outDir": "./compiled/paletx",
+    "lib": ["es2015", "dom"],
+    "typeRoots": [
+      "node_modules/@types"
+    ]
+  },
+  "files": [
+    "src/components/index.ts"
+  ],
+  "angularCompilerOptions": {
+    "strictMetadataEmit": true,
+    "genDir": "./tmp/"
+  }
+}
+
+////////////gulpfile.js
+
+/**
+ * Created by 10206545 on 2017/9/24.
+ */
+const gulp = require('gulp');
+const gulpSass = require('gulp-sass');
+const gulpIf = require('gulp-if');
+const gulpMinifyHtml = require('gulp-htmlmin');
+const inlineResources= require('./scripts/inline-resources');
+const inlineResourcesInMetaDataFiles=require('./scripts/inline-resources-metadata')
+const execNodeTask= require('./scripts/execNodeTask');
+const makePlunkerDemos = require('./scripts/generate-plunker-demo');
+const gulpRunSequence = require('run-sequence');
+const gulpClean = require('gulp-clean');
+const gulpReplace = require('gulp-replace');
+const gulpConcat=require('gulp-concat');
+const gulpLess=require('gulp-less');
+const gutil = require('gulp-util');
+const webpack = require('webpack');
+const del =require('del');
+const readline = require('readline');
+
+function _globify(maybeGlob, suffix) {
+    suffix=suffix||'**/*';
+    if (maybeGlob.indexOf('*') != -1) {
+        return maybeGlob;
+    }
+    try {
+        const stat = fs.statSync(maybeGlob);
+        if (stat.isFile()) {
+            return maybeGlob;
+        }
+    } catch (e) {}
+    return path.join(maybeGlob, suffix);
+}
+// 编译Sass
+gulp.task('build:components:sass',function () {
+   return gulp.src('src/components/**/*.scss')
+       .pipe(gulpSass().on('error', gulpSass.logError))
+       .pipe(gulp.dest('compiled/paletx/'))
+});
+// js文件中内联模板与样式文件
+gulp.task('build:components:inline-resource',function () {
+   return inlineResources('./compiled/paletx');
+});
+// metadata文件中内联模板与样式文件
+gulp.task('build:components:inline-resource-metadata',function () {
+    return inlineResourcesInMetaDataFiles('./compiled/paletx');
+});
+// 拷贝模板文件
+gulp.task('build:components:copyHtml',function () {
+      return gulp.src(['src/components/**/*.html','src/components/*.package.json']).
+          pipe(gulpIf(/.html$/,gulpMinifyHtml({
+          collapseWhitespace: true,
+          removeComments: true,
+          caseSensitive: true,
+          removeAttributeQuotes: false
+      }))).pipe(gulp.dest('compiled/paletx/'))
+});
+// 拷贝未使用sass编写的css样式文件
+gulp.task('build:components:copyCss',function () {
+    return gulp.src(['src/components/**/*.css'])
+        .pipe(gulp.dest('compiled/paletx'))
+});
+// 静态检查
+gulp.task('build:components:tslint',execNodeTask('tslint',['--exclude','src/components/**/*.spec.ts','src/components/**/*.ts','--fix']));
+// ngc编译
+gulp.task('build:components:ngc',execNodeTask('@angular/compiler-cli','ngc',['-p', 'ngconfig.json']));
+// 清理目录
+gulp.task('build:components:clean',function () {
+    return gulp.src(['compiled','tmp'],{read:false})
+        .pipe(gulpClean(null));
+});
+// 清理css,html文件
+gulp.task('build:components:cleanCSS&Html',function () {
+    return gulp.src(['compiled/paletx/!(assets)/**/*.css','compiled/**/*.html'],{read:false})
+        .pipe(gulpClean(null));
+});
+// 拷贝资源文件
+gulp.task('build:components:copyAssets',function () {
+    return gulp.src(['src/components/assets/**/*'])
+        .pipe(gulp.dest('compiled/paletx/assets'))
+});
+// 拷贝 package.json 文件
+gulp.task('build:components:copyJson',function () {
+    return gulp.src(['src/components/package.json'])
+        .pipe(gulp.dest('compiled/paletx/'))
+});
+
+// TODO: 整合组件的单元测试
+
+// 拷贝编译好的包到 node_modules
+gulp.task('releaseTo:node_modules',function () {
+    return gulp.src('compiled/**/*')
+        .pipe(gulp.dest('node_modules'))
+});
+
+//  将组件中stylesUrl中 引入的scss更名为css
+gulp.task('build:components:renameScss',function () {
+    return gulp.src('compiled/**/*.js')
+        .pipe(gulpReplace(/.scss/gm,".css")
+        ).pipe(gulp.dest('compiled/'));
+});
+
+
+// 整合所有的less文件
+gulp.task('build:components:concatLess',function () {
+    return gulp.src(['src/components/!(assets)/**/*.less', 'src/components/assets/themes/common/*.less'])
+        .pipe(gulpConcat('common.less'))
+        .pipe(gulpReplace(/^@import\s*[',"].*[',"];$/gm,"///////"))
+        .pipe(gulp.dest('compiled/paletx/assets/themes/'));
+});
+// 清理paletx/assets/themes/commom
+gulp.task('build:components:cleanCommonLessDir',function () {
+    return gulp.src(['compiled/paletx/assets/themes/common'],{read:false})
+        .pipe(gulpClean(null));
+});
+//编译less
+gulp.task('build:components:compileLess',function () {
+    return gulp.src('compiled/paletx/assets/themes/**/theme.less')
+        .pipe(gulpLess())
+        .pipe(gulp.dest('compiled/paletx/assets/themes/'));
+});
+
+// webpack回调函数
+function webpackCallBack(taskName, gulpDone) {
+    return function(err, stats) {
+        if (err) throw new gutil.PluginError(taskName, err);
+        gutil.log(`[${taskName}]`, stats.toString());
+        gulpDone();
+    }
+}
+// webpack生成paletx.umd.js
+gulp.task('build:components:umd',function (cb) {
+    function ngExternal(ns) {
+        var ng2Ns = `@angular/${ns}`;
+        return {root: ['ng', ns], commonjs: ng2Ns, commonjs2: ng2Ns, amd: ng2Ns};
+    }
+
+    function rxjsExternal(context, request, cb) {
+        if (/^rxjs\/add\/observable\//.test(request)) {
+            return cb(null, {root: ['Rx', 'Observable'], commonjs: request, commonjs2: request, amd: request});
+        } else if (/^rxjs\/add\/operator\//.test(request)) {
+            return cb(null, {root: ['Rx', 'Observable', 'prototype'], commonjs: request, commonjs2: request, amd: request});
+        } else if (/^rxjs\//.test(request)) {
+            return cb(null, {root: ['Rx'], commonjs: request, commonjs2: request, amd: request});
+        }
+        cb();
+    }
+
+    webpack(
+        {
+            entry: './compiled/-paletx/index.js',
+            output: {filename: './bundles/paletx.umd.js', library: 'ngb', libraryTarget: 'umd'},
+            devtool: 'source-map',
+            externals: [
+                {
+                    '@angular/core': ngExternal('core'),
+                    '@angular/common': ngExternal('common'),
+                    '@angular/forms': ngExternal('forms')
+                },
+                rxjsExternal
+            ]
+        },
+        webpackCallBack('webpack', cb));
+});
+
+
+//  整合编译组件的子任务
+gulp.task('build:components',function () {
+    gulpRunSequence(
+        // 'build:components:tslint',
+        'build:components:clean',
+        'build:components:ngc',
+        'build:components:sass',
+        'build:components:copyHtml',
+        'build:components:copyCss',
+        'build:components:renameScss',
+        'build:components:inline-resource',
+        'build:components:inline-resource-metadata',
+        'build:components:cleanCSS&Html',
+        'build:components:copyAssets',
+        'build:components:copyJson',
+        'build:components:concatLess',
+        'build:components:compileLess',
+        'build:components:cleanCommonLessDir',
+        "makeSoftLink：cleanNodeModules",
+        'releaseTo:node_modules'
+
+    )
+});
+// 清理软链接
+gulp.task("makeSoftLink：cleanNodeModules", function () {
+    return gulp.src('node_modules/paletx', { read: false })
+        .pipe(gulpClean(null));
+});
+//备份package.json 文件
+gulp.task('makeSoftLink：backup', function () {
+    return gulp.src( 'src/components/package.json').
+        pipe(gulp.dest('src/components/packagebackup'))
+});
+// 删除package.json文件
+gulp.task("makeSoftLink：cleanPackageJson", function () {
+    return gulp.src('src/components/package.json', { read: false })
+        .pipe(gulpClean(null));
+});
+//修改package.json 文件中无效的版本号
+gulp.task('makeSoftLink：modify', function () {
+    return gulp.src('src/components/packagebackup/package.json').
+        pipe(gulpReplace(/[\d]{2}.[\d]{4,6}.snapshot|release/gm, '0.0.0')).
+        pipe(gulp.dest('src/components/'));
+});
+
+// 恢复 package.json 文件
+gulp.task("makeSoftLink：revert",function name() {
+    return gulp.src('src/components/packagebackup/*.json').
+        pipe(gulp.dest('src/components/'))
+});
+// 清理备份的package
+gulp.task("makeSoftLink：cleanPackageJsonBackUp", function () {
+    return gulp.src('src/components/packagebackup', { read: false })
+        .pipe(gulpClean(null));
+});
+//  
+gulp.task('makePaletxSoftLink:before', function () {
+    gulpRunSequence(
+         'makeSoftLink：backup',
+         "makeSoftLink：cleanPackageJson",
+         'makeSoftLink：modify',
+         'makeSoftLink：cleanNodeModules'
+    )
+});
+gulp.task('makePaletxSoftLink:after', function () {
+    gulpRunSequence(
+        "makeSoftLink：cleanPackageJson",
+        "makeSoftLink：revert",
+        "makeSoftLink：cleanPackageJsonBackUp"
+    )
+});
+
+//  npm start时生成theme.css文件并拷贝到components下
+gulp.task('addThemesCss:start',function () {
+    gulpRunSequence(
+        'build:components:copyAssets',
+        'build:components:concatLess',
+        'build:components:compileLess',
+        'copyToComponent:start'
+    )
+});
+
+// 将theme.css文件拷贝到components下
+gulp.task('copyToComponent:start',function () {
+    return gulp.src('compiled/paletx/assets/themes/*/theme.css')
+        .pipe(gulp.dest('src/assets/components/themes'))
+});
+
+// 将theme.css文件并拷贝到dist下
+gulp.task('copyCssToDist',function () {
+    return gulp.src('compiled/paletx/assets/themes/*/theme.css')
+        .pipe(gulp.dest('dist/assets/components/themes'))
+});
+
+
+//  从 源码中引入组件
+gulp.task('changeImport:src',function () {
+    gulpRunSequence(
+        'changeImport:src:changeSharedImport',
+        'changeImport:src:changeLess'
+    );
+});
+//改变demo中的less从皮肤文件中引入
+gulp.task('changeImport:src:changeLess',function () {
+    var rl = readline.createInterface(process.stdin,process.stdout);
+    rl.setPrompt('请输入要切换的皮肤，敲回车确认,当前可选皮肤为：default,NIV\n');
+    rl.prompt();
+    rl.on('line', (cmd) => {
+        console.log(`You just typed: ${cmd}`);
+        if(cmd==='default' || cmd==='NIV'){
+            rl.close();
+            let resplaceString='@import "..\/..\/..\/..\/..\/assets\/components\/themes\/'+cmd+'\/theme.less";';
+            return gulp.src('src/showcase/componentsDemo/**/*.less')
+                .pipe(gulpReplace(/\/\/\/\/\/\/\/\/---import from modules---\/\/\/\/\/\/\//gm,resplaceString))
+                .pipe(gulp.dest('src/showcase/componentsDemo/'));
+        }else{
+            rl.setPrompt('无效的皮肤\n');
+            rl.prompt();
+            rl.close();
+        }
+
+    });
+
+});
+//改变ts从源码引入
+gulp.task('changeImport:src:changeSharedImport',function () {
+    let a=new RegExp("from 'paletx'",'gm');
+    return gulp.src('src/showcase/componentsDemo/shared/index.ts')
+        .pipe(gulpReplace(a,"from '../../../components'"))
+        .pipe(gulp.dest('src/showcase/componentsDemo/shared/'));
+});
+////////////////////////////////////////////////////////////
+
+// 从 node_modules 中引入组件
+gulp.task('changeImport:modules',function () {
+    gulpRunSequence(
+        'changeImport:modules:changeSharedImport',
+        'changeImport:modules:changeLess'
+    );
+});
+
+//demo中不引入less，
+gulp.task('changeImport:modules:changeLess',function () {
+    return gulp.src('src/showcase/componentsDemo/**/*.less')
+        .pipe(gulpReplace(/@import "..\/..\/..\/..\/..\/assets\/components\/themes\/[\w]+\/theme.less";/gm,"////////---import from modules---///////"))
+        .pipe(gulp.dest('src/showcase/componentsDemo/'));
+});
+// 从modules中引入
+gulp.task('changeImport:modules:changeSharedImport',function () {
+    return gulp.src('src/showcase/componentsDemo/shared/index.ts')
+        .pipe(gulpReplace(/from '..\/..\/..\/components'/gm,"from 'paletx'"))
+        .pipe(gulp.dest('src/showcase/componentsDemo/shared'));
+});
+
+
+/**********生成 plunker demo**********/
+// 清理目录
+gulp.task('plunker:demos:clean',function () {
+    return gulp.src('plunker-demos',{read:false})
+        .pipe(gulpClean(null));
+});
+
+// 拷贝文件
+gulp.task('plunker:demos:copy',function () {
+    return gulp.src(['src/showcase/componentsDemo/**/*.ts',
+        'src/showcase/componentsDemo/**/*.html', 'src/showcase/componentsDemo/**/*.css'])
+        .pipe(gulp.dest('plunker-demos-tmp/'))
+});
+
+// 编译less
+gulp.task('plunker:demos:compileLess',function () {
+    return gulp.src('src/showcase/componentsDemo/**/*.less')
+        .pipe(gulpLess())
+        .pipe(gulp.dest('plunker-demos-tmp/'));
+});
+
+// 将组件中stylesUrl中 引入的less更名为css
+gulp.task('plunker:demos:renameLess',function () {
+    return gulp.src('plunker-demos-tmp/**/*.ts')
+        .pipe(gulpReplace(/.less/gm,".css")
+        ).pipe(gulp.dest('plunker-demos-tmp/'));
+});
+
+gulp.task('plunker:demos:changeSharedImport', function () {
+    return gulp.src('plunker-demos-tmp/**/*.ts')
+        .pipe(gulpReplace(/from "..\/..\/..\/shared"/gm, "from 'paletx'")
+        ).pipe(gulp.dest('plunker-demos-tmp/'));
+});
+
+// 生成demo
+gulp.task('plunker:demos:makeDemos',function () {
+    makePlunkerDemos();
+});
+
+// 清理临时目录
+gulp.task('plunker:demos:cleanTmp',function () {
+    return gulp.src('plunker-demos-tmp',{read:false})
+        .pipe(gulpClean(null));
+});
+
+gulp.task('plunker:demos',function () {
+    gulpRunSequence(
+        'plunker:demos:clean',
+        'plunker:demos:copy',
+        'plunker:demos:compileLess',
+        'plunker:demos:renameLess',
+        'plunker:demos:changeSharedImport',
+        'plunker:demos:makeDemos',
+        'plunker:demos:cleanTmp'
+    );
+});
+
+////////////////execNodeTask.js
+/**
+ * Created by 10206545 on 2017/9/25.
+ */
+const resolveBin = require('resolve-bin');
+const child_process=require('child_process');
+function execTask(binPath,args,options) {
+    return function (done) {
+        const childProcess=child_process.spawn(binPath,args);
+
+        if (!options.silent) {
+            childProcess.stdout.on('data', function(data) {
+                process.stdout.write(data);
+            });
+
+            childProcess.stderr.on('data', function(data) {
+                process.stderr.write(data);
+            });
+        }
+
+        childProcess.on('close',function (code) {
+            if (code != 0) {
+                if (options.errMessage === undefined) {
+                    done('Process failed with code ' + code);
+                } else {
+                    done(options.errMessage);
+                }
+            } else {
+                done();
+            }
+        });
+    }
+}
+function execNodeTask(packageName,executable,args,options) {
+
+    options=options || {};
+    if (!args) {
+        args =executable;
+        executable = void 0;
+    }
+    return function (done) {
+        resolveBin(packageName,{executable:executable},function (err,binPath) {
+            if(err) {
+                console.log(err);
+                done(err);
+            } else {
+                execTask('node', [binPath].concat(args), options)(done);
+
+            }
+        })
+    }
+}
+
+
+module.exports = execNodeTask;
+
+/////////////////////////inline-resources.js
+/**
+ * Created by 10206545 on 2017/9/24.
+ */
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const glob = require('glob');
+
+/**
+ * Simple Promiseify function that takes a Node API and return a version that supports promises.
+ * We use promises instead of synchronized functions to make the process less I/O bound and
+ * faster. It also simplify the code.
+ */
+function promiseify(fn) {
+    return function() {
+        const args = [].slice.call(arguments, 0);
+        return new Promise((resolve, reject) => {
+            fn.apply(this, args.concat([function (err, value) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(value);
+                }
+            }]));
+        });
+    };
+}
+
+const readFile = promiseify(fs.readFile);
+const writeFile = promiseify(fs.writeFile);
+
+
+function inlineResources(globs) {
+    if (typeof globs == 'string') {
+        globs = [globs];
+    }
+
+    /**
+     * For every argument, inline the templates and styles under it and write the new file.
+     */
+    return Promise.all(globs.map(pattern => {
+        if (pattern.indexOf('*') < 0) {
+            // Argument is a directory target, add glob patterns to include every files.
+            pattern = path.join(pattern, '**', '*');
+        }
+
+        const files = glob.sync(pattern, {})
+            .filter(name => /(\.js$)/.test(name));  // 匹配js文件
+
+        // Generate all files content with inlined templates.
+        return Promise.all(files.map(filePath => {
+            return readFile(filePath, 'utf-8')
+                .then(content => inlineResourcesFromString(content, url => {
+                    return path.join(path.dirname(filePath), url);
+                }))
+                .then(content => writeFile(filePath, content))
+                .catch(err => {
+                    console.error('An error occurred: ', err);
+                });
+        }));
+    }));
+}
+
+/**
+ * Inline resources from a string content.
+ * @param content {string} The source file's content.
+ * @param urlResolver {Function} A resolver that takes a URL and return a path.
+ * @returns {string} The content with resources inlined.
+ */
+function inlineResourcesFromString(content, urlResolver) {
+    // Curry through the inlining functions.
+    return [
+        inlineTemplate,
+        removeLessImport,
+        inlineStyle,
+        removeModuleId,
+
+    ].reduce((content, fn) => fn(content, urlResolver), content);
+}
+
+if (require.main === module) {
+    inlineResources(process.argv.slice(2));
+}
+
+
+/**
+ * Inline the templates for a source file. Simply search for instances of `templateUrl: ...` and
+ * replace with `template: ...` (with the content of the file included).
+ * @param content {string} The source file's content.
+ * @param urlResolver {Function} A resolver that takes a URL and return a path.
+ * @return {string} The content with all templates inlined.
+ */
+function inlineTemplate(content, urlResolver) {
+    return content.replace(/templateUrl:\s*'([^']+?\.html)'/g, function(m, templateUrl) {
+        const templateFile = urlResolver(templateUrl);
+        const templateContent = fs.readFileSync(templateFile, 'utf-8');
+        const shortenedTemplate = templateContent
+            .replace(/([\n\r]\s*)+/gm, ' ')
+            .replace(/"/g, '\\"');
+        return `template: "${shortenedTemplate}"`;
+    });
+}
+
+/**
+ * Inline the styles for a source file. Simply search for instances of `styleUrls: [...]` and
+ * replace with `styles: [...]` (with the content of the file included).
+ * @param urlResolver {Function} A resolver that takes a URL and return a path.
+ * @param content {string} The source file's content.
+ * @return {string} The content with all styles inlined.
+ */
+/*
+ function(m, styleUrls) {
+ const urls = eval(styleUrls);
+ return 'styles: ['
+ + urls.map(styleUrl => {
+ const styleFile = urlResolver(styleUrl);
+ const styleContent = fs.readFileSync(styleFile, 'utf-8');
+ const shortenedStyle = styleContent
+ .replace(/([\n\r]\s*)+/gm, ' ')
+ .replace(/"/g, '\\"');
+ return `"${shortenedStyle}"`;
+ })
+ .join(',\n')
+ + ']';
+ }
+
+
+
+
+
+*/
+
+// old: styleUrls:\s*(\[[\s\S]*?\])
+//  ["]?styleUrls["]?:\s*(\[[\s\S]*?\])
+// ["]?styleUrls["]?:\s*(\[[',"].*.css[',"]\])
+
+//last: [",']?styleUrls[",']?:\s*(\[[',"]?[\s\S]*?\.css[',"]\])
+function inlineStyle(content, urlResolver) {
+    return content.replace(/styleUrls:\s*(\[[',"]?[\s\S]*?\.css[',"]\])/gm, function(m, styleUrls) {
+        // console.log(styleUrls);
+        const urls = eval(styleUrls);
+        return 'styles: ['
+            + urls.map(styleUrl => {
+                const styleFile = urlResolver(styleUrl);
+                const styleContent = fs.readFileSync(styleFile, 'utf-8');
+                const shortenedStyle = styleContent
+                    .replace(/([\n\r]\s*)+/gm, ' ')
+                    .replace(/"/g, '\\"');
+                return `"${shortenedStyle}"`;
+            })
+                .join(',\n')
+            + ']';
+    });
+}
+// 移除 less
+function removeLessImport(content, urlResolver) {
+    return content.replace(/[",']?styleUrls[",']?:\s*\[[',"]?([\s\S]*?\.less)[',"]\],?/gm, ' ');
+}
+
+
+/**
+ * Remove every mention of `moduleId: module.id`.
+ * @param content {string} The source file's content.
+ * @returns {string} The content with all moduleId: mentions removed.
+ */
+function removeModuleId(content) {
+    return content.replace(/\s*moduleId:\s*module\.id\s*,?\s*/gm, '');
+}
+
+
+
+
+module.exports = inlineResources;
+module.exports.inlineResourcesFromString = inlineResourcesFromString;
+
+
+/////////////////////inline-resource-metadata.js
+
+
+/**
+ * Created by 10206545 on 2017/11/23.
+ */
+/**
+ * Created by 10206545 on 2017/9/24.
+ */
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const glob = require('glob');
+
+/**
+ * Simple Promiseify function that takes a Node API and return a version that supports promises.
+ * We use promises instead of synchronized functions to make the process less I/O bound and
+ * faster. It also simplify the code.
+ */
+function promiseify(fn) {
+    return function() {
+        const args = [].slice.call(arguments, 0);
+        return new Promise((resolve, reject) => {
+            fn.apply(this, args.concat([function (err, value) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(value);
+                }
+            }]));
+        });
+    };
+}
+
+const readFile = promiseify(fs.readFile);
+const writeFile = promiseify(fs.writeFile);
+
+
+function inlineResourcesInMetadataFiles(globs) {
+    if (typeof globs == 'string') {
+        globs = [globs];
+    }
+
+    /**
+     * For every argument, inline the templates and styles under it and write the new file.
+     */
+    return Promise.all(globs.map(pattern => {
+        if (pattern.indexOf('*') < 0) {
+            // Argument is a directory target, add glob patterns to include every files.
+            pattern = path.join(pattern, '**', '*');
+        }
+
+        const files = glob.sync(pattern, {})
+            .filter(name => /(metadata\.json$)/.test(name));  // 匹配metadata文件
+
+        // Generate all files content with inlined templates.
+        return Promise.all(files.map(filePath => {
+            return readFile(filePath, 'utf-8')
+                .then(content => inlineResourcesFromString(content, url => {
+                    return path.join(path.dirname(filePath), url);
+                }))
+                .then(content => writeFile(filePath, content))
+                .catch(err => {
+                    console.error('An error occurred: ', err);
+                });
+        }));
+    }));
+}
+
+/**
+ * Inline resources from a string content.
+ * @param content {string} The source file's content.
+ * @param urlResolver {Function} A resolver that takes a URL and return a path.
+ * @returns {string} The content with resources inlined.
+ */
+function inlineResourcesFromString(content, urlResolver) {
+    // Curry through the inlining functions.
+    return [
+        inlineTemplateInMetadataFile,
+        removeLessImport,
+        inlineStyle,
+        removeModuleId,
+    ].reduce((content, fn) => fn(content, urlResolver), content);
+}
+
+if (require.main === module) {
+    inlineResourcesInMetadataFiles(process.argv.slice(2));
+}
+
+
+/**
+ * Inline the templates for a source file. Simply search for instances of `templateUrl: ...` and
+ * replace with `template: ...` (with the content of the file included).
+ * @param content {string} The source file's content.
+ * @param urlResolver {Function} A resolver that takes a URL and return a path.
+ * @return {string} The content with all templates inlined.
+ */
+
+function inlineTemplateInMetadataFile(content, urlResolver) {
+    return content.replace(/"templateUrl":\s*"([^']+?\.html)"/g, function (m, templateUrl) {
+        const templateFile = urlResolver(templateUrl);
+        const templateContent = fs.readFileSync(templateFile, 'utf-8');
+        const shortenedTemplate = templateContent
+            .replace(/([\n\r]\s*)+/gm, ' ')
+            .replace(/"/g, '\\"');
+        return `"template": "${shortenedTemplate}"`;
+    });
+}
+
+
+/**
+ * Inline the styles for a source file. Simply search for instances of `styleUrls: [...]` and
+ * replace with `styles: [...]` (with the content of the file included).
+ * @param urlResolver {Function} A resolver that takes a URL and return a path.
+ * @param content {string} The source file's content.
+ * @return {string} The content with all styles inlined.
+ */
+/*
+ function(m, styleUrls) {
+ const urls = eval(styleUrls);
+ return 'styles: ['
+ + urls.map(styleUrl => {
+ const styleFile = urlResolver(styleUrl);
+ const styleContent = fs.readFileSync(styleFile, 'utf-8');
+ const shortenedStyle = styleContent
+ .replace(/([\n\r]\s*)+/gm, ' ')
+ .replace(/"/g, '\\"');
+ return `"${shortenedStyle}"`;
+ })
+ .join(',\n')
+ + ']';
+ }
+
+
+
+
+
+ */
+
+// old: styleUrls:\s*(\[[\s\S]*?\])
+//  ["]?styleUrls["]?:\s*(\[[\s\S]*?\])
+// ["]?styleUrls["]?:\s*(\[[',"].*.css[',"]\])
+
+//last: [",']?styleUrls[",']?:\s*(\[[',"]?[\s\S]*?\.css[',"]\])
+function inlineStyle(content, urlResolver) {
+    return content.replace(/[",']?styleUrls[",']?:\s*(\[[',"]?[\s\S]*?\.css[',"]\])/gm, function(m, styleUrls) {
+        // console.log(styleUrls);
+        const urls = eval(styleUrls);
+        return '"styles": ['
+            + urls.map(styleUrl => {
+                const styleFile = urlResolver(styleUrl);
+                const styleContent = fs.readFileSync(styleFile, 'utf-8');
+                const shortenedStyle = styleContent
+                    .replace(/([\n\r]\s*)+/gm, ' ')
+                    .replace(/"/g, '\\"');
+                return `"${shortenedStyle}"`;
+            })
+                .join(',\n')
+            + ']';
+    });
+}
+// 移除 less
+// [",']?styleUrls[",']?:\s*(\[[',"]?[\s\S]*?\.css[',"]\])\s?,?
+function removeLessImport(content, urlResolver) {
+    return content.replace(/,[",']?styleUrls[",']?:\s*\[[',"]?([\s\S]*?\.less)[',"]\]/gm, ' ');
+}
+
+
+/**
+ * Remove every mention of `moduleId: module.id`.
+ * @param content {string} The source file's content.
+ * @returns {string} The content with all moduleId: mentions removed.
+ */
+function removeModuleId(content) {
+    return content.replace(/\s*moduleId:\s*module\.id\s*,?\s*/gm, '');
+}
+
+
+
+
+module.exports = inlineResourcesInMetadataFiles;
+module.exports.inlineResourcesFromString = inlineResourcesFromString;
+/////////////////package.json
+{
+  "name": "paletx-website",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "ng": "ng",
+    "start": " npm run link && npm run addThemesCss:start && ng serve --host 0.0.0.0 --port 4400",
+    "build": "npm run makePackage && ng build --prod && npm run copyCssToDist",
+    "test": "ng test --code-coverage",
+    "lint": "ng lint",
+    "e2e": "ng e2e",
+    "link": "gulp makePaletxSoftLink:before && npm install file:./src/components --no-save && gulp makePaletxSoftLink:after",
+    "makePackage": "gulp build:components",
+    "changeImport:src": "gulp changeImport:src",
+    "changeImport:modules": "gulp changeImport:modules",
+    "makeUmd": "gulp build:components:umd",
+    "makeDemo": "gulp plunker:demos",
+    "addThemesCss:start": "gulp addThemesCss:start",
+    "copyCssToDist": "gulp copyCssToDist",
+    "copyPaletxToNodeModules": "gulp releaseTo:node_modules"
+  },
+  "private": true,
+  "dependencies": {
+    "@angular/animations": "^4.2.4",
+    "@angular/cdk": "^2.0.0-beta.8",
+    "@angular/common": "^4.2.4",
+    "@angular/compiler": "^4.2.4",
+    "@angular/core": "^4.2.4",
+    "@angular/forms": "^4.2.4",
+    "@angular/http": "^4.2.4",
+    "@angular/material": "^5.2.0",
+    "@angular/platform-browser": "^4.2.4",
+    "@angular/platform-browser-dynamic": "^4.2.4",
+    "@angular/router": "^4.2.4",
+    "angular-in-memory-web-api": "^0.4.6",
+    "classlist.js": "^1.1.20150312",
+    "core-js": "^2.4.1",
+    "date-fns": "^1.29.0",
+    "echarts": "4.0.2",
+    "html2canvas": "^1.0.0-alpha.12",
+    "intl": "^1.2.5",
+    "jquery": "^3.2.1",
+    "ng-zorro-antd": "^0.5.5",
+    "rxjs": "^5.4.2",
+    "web-animations-js": "^2.3.1",
+    "zone.js": "^0.8.14"
+  },
+  "devDependencies": {
+    "@angular/cli": "1.4.3",
+    "@angular/compiler-cli": "^4.2.4",
+    "@angular/language-service": "^4.2.4",
+    "@types/jasmine": "~2.5.53",
+    "@types/jasminewd2": "~2.0.2",
+    "@types/node": "~6.0.60",
+    "codelyzer": "~3.1.1",
+    "copyfiles": "^1.2.0",
+    "del": "^3.0.0",
+    "gsap": "^1.20.2",
+    "gulp": "^3.9.1",
+    "gulp-clean": "^0.3.2",
+    "gulp-concat": "^2.6.1",
+    "gulp-htmlmin": "^3.0.0",
+    "gulp-if": "^2.0.2",
+    "gulp-less": "^3.3.2",
+    "gulp-util": "^3.0.7",
+    "gulp-rename": "^1.2.2",
+    "gulp-replace": "^0.6.1",
+    "gulp-sass": "^3.1.0",
+    "jasmine-core": "~2.6.2",
+    "jasmine-spec-reporter": "~4.1.0",
+    "karma": "~1.7.0",
+    "karma-chrome-launcher": "~2.1.1",
+    "karma-cli": "~1.0.1",
+    "karma-coverage": "1.1.1",
+    "karma-coverage-istanbul-reporter": "^1.2.1",
+    "karma-html-reporter": "^0.2.7",
+    "karma-jasmine": "~1.1.0",
+    "karma-jasmine-diff-reporter": "1.0.0",
+    "karma-jasmine-html-reporter": "^0.2.2",
+    "karma-junit-reporter": "^1.2.0",
+    "karma-mocha-reporter": "2.2.3",
+    "karma-remap-coverage": "0.1.4",
+    "karma-sourcemap-loader": "0.3.7",
+    "prismjs": "^1.8.1",
+    "prismjs-loader": "0.0.4",
+    "protractor": "~5.1.2",
+    "resolve-bin": "^0.4.0",
+    "run-sequence": "^2.2.0",
+    "ts-node": "~3.2.0",
+    "tslint": "~5.3.2",
+    "tslint-fix": "^0.1.0",
+    "typescript": "~2.3.3"
+  }
+}
+
+
+
+
+
