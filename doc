@@ -1,0 +1,66 @@
+API
+类型	选择器
+组件	plx-table
+输入绑定
+属性名	类型	默认值	说明
+data	Array<Object>	null	传递给表格的数据，表格根据column中的配置来显示data中的数据
+columns	Array<Object>	any	表格列的配置（关于columns的详细配置请参看下表）
+showCheckBox	boolean	false	设置于是否显示checkbox列
+showRowDropdown	boolean	false	设置于是否显示详情展开列
+dropDownTitleWidth	string	'20%'	设置详情列展开后的插入的表格内容的标题列的宽度，默认值为宽度的20%
+checkModel	'single' | 'multi'	single	设置checkbox选中方式，'single'为单选，'multi'为多选
+showIndexColumn	boolean	false	设置是否显示序号列
+isPrepareDataOnLocal	boolean	true	设置表格是否对传入的data数据进行过滤、排序、分页等处理
+showTableHead	boolean	true	设置是否显示表格头
+showPagination	boolean	true	设置是否显示分页
+showColFilterToggle	boolean	true	设置是否显示列搜索输入框的开关
+showLoading	boolean	true	设置是否显示加载中的动画
+scroll	{y:'10px' }	null	设置表格出滚动条：当超过 scroll.y 指定的高度后，表格出滚动条
+total	number	0	设置数据的总条数；只在设置isPrepareDataOnLocal为false时，对total的设置才有效
+pageSizeSelections	Array<number>	[5,10,15,20]	分页显示条数的下拉选项
+pageSize	number	pageSizeSelections[0]	设置一页显示的数据条数
+pageIndex	number	1	设置页码
+showGlobalFilter	boolean	true	设置是否显示全局过滤框
+showCustomCol	boolean	true	设置是否显示列定制的开关
+tableType	stirng	'normal'	设置表格类型,设置为'sm'时，行高为30px,表示数据密集型表格;设置为'normal'时表示常规型表格样式,行高为40px;设置为'large'时为轻量化的表格样式,行高为50px,无部分边框;设置为'card',为卡片式表格样式
+language	stirng	zh-CN	设置表格国际化信息.//1.18.20.05版本及之后，建议使用paletx统一提供的il8n服务PlxI18nService，设置国际化信息，此处不要再单独设置。
+showNoDataMessage	boolean	true	设置当data为空时是否显示无数据提示
+noDataMessage	string	'no data'	当数据为空时，显示的提示信息的字段。
+globalFilterPlaceholder	string	''	全局过滤输入框的提示字段
+loadingPlaceholder	string	Loading...	加载中的提示字段
+colsPanelMaxHeight	string	'200px'	设置列定制面板的最大高度，当超出这个高度时，面板出滚动条
+customColsCallback	Function	'null'	当点击列定制面板的确认按钮时会回调该方法，详细使用参考第一个样例
+optimizScrollOnX	boolean	false	当列过多时(>=200),优化横向滚动效率，减少页面DOM
+optimizScrollOnY	boolean	false	当列过多时(>=200),优化纵向效率，减少页面DOM
+disabled	boolean	false	为true时，置灰表格
+searchInstant	boolean	true	设置全局搜索的搜索方式，true表示即时搜索，false表示用户点击确认再搜索 (插入内容样例)
+showGlobleFilterTip	boolean	false	设置是否显示全局搜索框的提示信息，当全局搜索框的提示语言不能全部显示时使用，为true时，点击全局搜索输入框，出现popover提示
+输出绑定
+属性名	参数	说明
+pageInfoChange	{pageSize:number;pageIndex:number;maxPageIndex:number}	当用户点击分页时回调
+checkboxInfoChange	Object	当checkbox勾选/取消时回调,其中回调的参数所包含的字段请参考 ‘联动选择’ 样例。
+filterInfoChange	Object	当在表格搜索框输入内容时的回调,回调时传递的参数详见 前端数据处理 样例
+sortInfoChange	Array<Object>	当在表格上点击排序图标时回调,回调时传递的参数详见 前端数据处理 样例属性/接口
+columns
+属性名	类型	默认值	说明
+key	string	null	columens对象中key必须与data中的key相对应
+title	string	null	表格对应列的标题
+show	boolean	true	设置当前列是否直接在表格中显示，设置为false时，可在列定制中来勾选控制该列的显示与隐藏
+showInDropdown	boolean	false	设置该列是否在详情展开后显示
+showInColsPanel	boolean	true	设置该列是否在定制列的面板中显示
+sort	string ('asc','desc','none')	null	设置该列数据是否可排序,设置为'none'初始化的时候不排序，设置为'asc'初始化时对该列进行升序排序,设置为'desc'初始化时对该列进行降序排序
+filter	boolean	false	设置是否显示列过滤输入框
+filterArray	Array<Object> | (columnKey:string)=>Promise< Array<Object> >	null	设置列的下拉筛选项,可以是个数组也可以是个回调方法,其中filterKey用来指定过滤的关键字，checked用来设置是否勾选,具体用法请参考‘基础表格’样例的‘姓名列的配置’
+class	string	null	设置列的class，可以根据所设置的class来写样式定制列的样式，多个class可通过空格来分隔,class中添加 'plx-ellipsis' 设置该列字符超长时省略，悬停上去展示完整信息(详细用法参考 '基础表格' 样例中超长列的设置)
+width	string	null	设置列的宽度，当使用固定表头时，需要指定列的宽度，否则会出现表头与内容不对齐的问题
+contentType	string ('html','component')	undefined	设置该列中的数据类型，'html'表示内容为html，component表示插入组件
+component	class	null	当 contentType='component'时，通过设置component来设置所插入的组件
+colFilterTemplate	TemplateRef	null	配置该列的列过滤模板(参看 ‘自定义列过滤组件’ 样例)
+format	(value:string):string	null	设置该列数据在显示前的格式化方法，具体使用方法请参考基础表格样例中对编号列与用户名列的配置
+popOverFormat	(value:string):string	null	格式化字符超长列省略时popover弹出提示的内容，具体使用方法请参考'基础表格' 样例中对'超长列的配置'
+textAlign	string	'left'	设置该列数据文字对齐方式，可选值为 'left','right','center',仅适用于显示数据类型为字符串类
+inputs	Object	'null'	动态插入组件时，根据inputs中的配置，进行输入绑定(具体请参照 输入输出绑定插入组件 样例)
+outputs	Object	'null'	动态插入组件时，根据outputs中的配置，进行输出绑定(具体请参照 输入输出绑定插入组件 样例)
+popOverTitle	string		配置标题的说明，当有值时，标题前方出现问号，hover时，popover显示配置的内容, 具体使用方法请参考'基础表格' 样例的'邮箱'列
+resizable	boolean	false	配置列是否可通过拖动调整宽度
+minWidth	string	80px	配置列拖动调整宽度时的最小宽
