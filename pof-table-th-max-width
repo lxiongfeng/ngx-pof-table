@@ -1,0 +1,21 @@
+import { Pipe, PipeTransform } from '@angular/core';
+
+@Pipe({ name: 'plxTableThMaxWidth' })
+export class plxTableThMaxWidth implements PipeTransform {
+    transform(col: any) {
+        let remainSpace:number=8;
+        if (!!col.sort) {
+            remainSpace+=15;
+        }
+        if (col.filterArray || col.selectFilterTemplate) {
+            remainSpace += 12;
+        }
+        if (col.popOverTitle) {
+            remainSpace += 16;
+        }
+        let styleStr='calc( 100% - '+remainSpace+'px )'
+       return {
+           'max-width': styleStr
+       }
+    }
+}
