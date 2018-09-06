@@ -1,0 +1,94 @@
+////////////////html
+<div  class="plx-table-sortIconWrapper">
+  <span class="plx-table-sortAsc"
+   [ngClass]="{'plx-table-ascActived':currentSortConf['key']==col.key && col.sort==='asc' }"
+   (click)="sortChange('asc')"
+   ></span>
+  <span class="plx-table-sortDesc"
+   [ngClass]="{'plx-table-descActived':currentSortConf['key']==col.key && col.sort==='desc'}"
+   (click)="sortChange('desc')"
+   ></span>
+</div>
+
+///////////////////////less
+@import "../../assets/themes/common/plx-checkbox.less";
+ /* 排序图标 */
+ .plx-table-sort-icon-shared{
+   display: block;
+   cursor: pointer;
+   width: 0;
+   height: 0;
+   border-left: 4px solid transparent;
+   border-right: 4px solid transparent;
+   margin-bottom: 3px;
+ }
+  .plx-table-sortIconWrapper{
+    display:inline-block;
+    vertical-align:middle;
+    margin-left:3px;
+  }
+  /* 排序图标：箭头向上 */
+  .plx-table-sortAsc{
+    .plx-table-sort-icon-shared;
+    border-bottom: 4px solid  @unselected-text-color;
+
+
+  }
+  .plx-table-ascActived{
+    border-bottom: 4px solid @primary-color;
+  }
+    /* 排序图标：箭头向下 */
+  .plx-table-sortDesc{
+    .plx-table-sort-icon-shared;
+    border-top: 4px solid @unselected-text-color;
+  }
+  .plx-table-descActived{
+    border-top: 4px solid @primary-color;
+  }
+  
+  ////////////////////////ts
+  
+  import {
+    Component,
+    OnInit,
+    Input,
+    ChangeDetectionStrategy,
+    ViewEncapsulation,
+    Output,
+    EventEmitter
+} from '@angular/core';
+import {SortItem} from '../classes/until.interface';
+@Component({
+    selector: 'plx-table-sort',
+    encapsulation: ViewEncapsulation.None,
+    templateUrl: 'plx-table-sort.component.html',
+    styleUrls: ['plx-table-sort.component.less']
+})
+export class PlxTableSortComponent implements OnInit {
+    @Input() col: any;
+    @Output() sortInfoChange: EventEmitter<any> = new EventEmitter<any>();
+    @Input() currentSortConf: SortItem;
+    // sortDirection: string;
+    constructor() {
+    }
+
+    ngOnInit() {
+        // this.sortDirection=this.col.sort;
+    }
+
+    sortChange(direction: string) {
+        if ( this.currentSortConf.key===this.col.key && this.currentSortConf.sortDirection === direction) {
+            this.col.sort = 'none';
+        } else {
+            this.col.sort = direction;
+        }
+
+        this.sortInfoChange.emit({
+            key: this.col.key,
+            sortDirection: this.col.sort,
+            sortFunc: this.col.sortFunction
+        });
+
+    }
+
+}
